@@ -32,6 +32,23 @@ interface Student {
   email: string;
 }
 
+// Create a custom validation for FileList that won't break SSR
+const fileListSchema = z.custom<FileList>(
+  (val) => val instanceof FileList && val.length > 0,
+  {
+    message: 'Certificate file is required.',
+  }
+);
+
+
+
+interface Student {
+  id: string;
+  name: string;
+  studentId: string;
+  email: string;
+}
+
 const formSchema = z.object({
   studentId: z.string().min(1, {
     message: 'Please select a student.',
@@ -45,12 +62,7 @@ const formSchema = z.object({
   }, {
     message: 'Please enter a valid date.',
   }),
-  certificateFile: z.instanceof(FileList).refine(
-    (files) => files.length > 0,
-    {
-      message: 'Certificate file is required.',
-    }
-  ),
+  certificateFile: fileListSchema,
 });
 
 // Function to generate SHA-256 hash
