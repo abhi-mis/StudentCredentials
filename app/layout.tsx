@@ -7,8 +7,8 @@ import { Toaster } from '@/components/ui/toaster';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Certificate Verification Platform',
-  description: 'A platform for schools to issue and companies to verify certificates',
+  title: 'VerifyCert',
+  description: 'A platform for schools/colleges to issue and companies to verify certificates',
 };
 
 export default function RootLayout({

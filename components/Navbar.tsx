@@ -30,7 +30,7 @@ export default function Navbar() {
         <div className="flex lg:flex-1">
           <Link href={`/dashboard/${userRole}`} className="-m-1.5 p-1.5 flex items-center gap-2">
             <Shield className="h-6 w-6 text-primary" />
-            <span className="text-lg font-semibold">CertVerify</span>
+            <span className="text-lg font-semibold">VerifyCert</span>
           </Link>
         </div>
         <div className="flex lg:hidden">
@@ -74,7 +74,7 @@ export default function Navbar() {
             <div className="flex items-center justify-between">
               <Link href={`/dashboard/${userRole}`} className="-m-1.5 p-1.5 flex items-center gap-2">
                 <Shield className="h-6 w-6 text-primary" />
-                <span className="text-lg font-semibold">CertVerify</span>
+                <span className="text-lg font-semibold">VerifyCert</span>
               </Link>
               <button
                 type="button"

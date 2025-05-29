@@ -7,7 +7,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/AuthContext';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Clock, Check, X, Building2 } from 'lucide-react';
+import { ArrowLeft, Clock, Check, X, Building2, Shield, ShieldOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface AccessRequest {
@@ -17,8 +17,9 @@ interface AccessRequest {
   companyEmail: string;
   studentId: string;
   requestDate: string;
-  status: 'pending' | 'approved' | 'denied';
+  status: 'pending' | 'approved' | 'denied' | 'revoked';
   message?: string;
+  responseDate?: string;
 }
 
 export default function StudentRequests() {
@@ -64,10 +65,17 @@ export default function StudentRequests() {
           ...doc.data(),
         })) as AccessRequest[];
         
-        // Sort requests: pending first, then by date
+        // Sort requests: pending first, then approved, then others by date
         const sortedRequests = requestsData.sort((a, b) => {
-          if (a.status === 'pending' && b.status !== 'pending') return -1;
-          if (a.status !== 'pending' && b.status === 'pending') return 1;
+          // Priority order: pending > approved > denied/revoked
+          const statusPriority = { pending: 0, approved: 1, denied: 2, revoked: 2 };
+          const aPriority = statusPriority[a.status] ?? 3;
+          const bPriority = statusPriority[b.status] ?? 3;
+          
+          if (aPriority !== bPriority) {
+            return aPriority - bPriority;
+          }
+          
           return new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime();
         });
         
@@ -93,7 +101,7 @@ export default function StudentRequests() {
       
       // Update the local state
       setRequests(requests.map(req => 
-        req.id === requestId ? { ...req, status } : req
+        req.id === requestId ? { ...req, status, responseDate: new Date().toISOString() } : req
       ));
       
       toast({
@@ -110,6 +118,32 @@ export default function StudentRequests() {
     }
   };
 
+  const handleRevokeAccess = async (requestId: string) => {
+    try {
+      await updateDoc(doc(db, 'accessRequests', requestId), {
+        status: 'revoked',
+        revokedDate: new Date().toISOString(),
+      });
+      
+      // Update the local state
+      setRequests(requests.map(req => 
+        req.id === requestId ? { ...req, status: 'revoked' as const } : req
+      ));
+      
+      toast({
+        title: 'Access revoked',
+        description: 'You have successfully revoked access to your certificates.',
+      });
+    } catch (error) {
+      console.error('Error revoking access:', error);
+      toast({
+        title: 'Failed to revoke access',
+        description: 'An error occurred while revoking access.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return new Intl.DateTimeFormat('en-US', {
@@ -117,6 +151,39 @@ export default function StudentRequests() {
       month: 'long',
       day: 'numeric',
     }).format(date);
+  };
+
+  const getStatusBadge = (status: AccessRequest['status']) => {
+    switch (status) {
+      case 'pending':
+        return (
+          <div className="flex items-center text-amber-500 bg-amber-50 px-2 py-1 rounded text-xs font-medium">
+            <Clock className="h-3 w-3 mr-1" />
+            Pending
+          </div>
+        );
+      case 'approved':
+        return (
+          <div className="flex items-center text-green-600 bg-green-50 px-2 py-1 rounded text-xs font-medium">
+            <Check className="h-3 w-3 mr-1" />
+            Approved
+          </div>
+        );
+      case 'denied':
+        return (
+          <div className="flex items-center text-red-600 bg-red-50 px-2 py-1 rounded text-xs font-medium">
+            <X className="h-3 w-3 mr-1" />
+            Denied
+          </div>
+        );
+      case 'revoked':
+        return (
+          <div className="flex items-center text-orange-600 bg-orange-50 px-2 py-1 rounded text-xs font-medium">
+            <ShieldOff className="h-3 w-3 mr-1" />
+            Revoked
+          </div>
+        );
+    }
   };
 
   if (loading || isLoading) {
@@ -155,6 +222,8 @@ export default function StudentRequests() {
                 key={request.id} 
                 className={`bg-white rounded-lg shadow border overflow-hidden ${
                   request.status === 'pending' ? 'ring-2 ring-primary/20' : ''
+                } ${
+                  request.status === 'approved' ? 'ring-2 ring-green-200' : ''
                 }`}
               >
                 <div className="p-6 border-b">
@@ -168,25 +237,18 @@ export default function StudentRequests() {
                         <p className="text-sm text-muted-foreground">
                           {request.companyEmail}
                         </p>
+                        {request.status === 'approved' && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <Shield className="h-3 w-3 text-green-600" />
+                            <span className="text-xs text-green-600 font-medium">
+                              Currently has access
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center">
-                      {request.status === 'pending' ? (
-                        <div className="flex items-center text-amber-500 bg-amber-50 px-2 py-1 rounded text-xs font-medium">
-                          <Clock className="h-3 w-3 mr-1" />
-                          Pending
-                        </div>
-                      ) : request.status === 'approved' ? (
-                        <div className="flex items-center text-green-600 bg-green-50 px-2 py-1 rounded text-xs font-medium">
-                          <Check className="h-3 w-3 mr-1" />
-                          Approved
-                        </div>
-                      ) : (
-                        <div className="flex items-center text-red-600 bg-red-50 px-2 py-1 rounded text-xs font-medium">
-                          <X className="h-3 w-3 mr-1" />
-                          Denied
-                        </div>
-                      )}
+                      {getStatusBadge(request.status)}
                     </div>
                   </div>
                 </div>
@@ -197,6 +259,13 @@ export default function StudentRequests() {
                       <span className="font-medium text-foreground">Request Date:</span>{' '}
                       {formatDate(request.requestDate)}
                     </p>
+                    
+                    {request.responseDate && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        <span className="font-medium text-foreground">Response Date:</span>{' '}
+                        {formatDate(request.responseDate)}
+                      </p>
+                    )}
                     
                     {request.message && (
                       <div className="mt-3">
@@ -224,11 +293,30 @@ export default function StudentRequests() {
                         Deny
                       </Button>
                     </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground italic">
-                      You {request.status === 'approved' ? 'approved' : 'denied'} this request
+                  ) : request.status === 'approved' ? (
+                    <div className="space-y-3">
+                      <p className="text-sm text-green-600 italic">
+                        ✓ You approved this request - Company can access your certificates
+                      </p>
+                      <Button
+                        onClick={() => handleRevokeAccess(request.id)}
+                        variant="destructive"
+                        size="sm"
+                        className="gap-2"
+                      >
+                        <ShieldOff className="h-4 w-4" />
+                        Revoke Access
+                      </Button>
+                    </div>
+                  ) : request.status === 'denied' ? (
+                    <p className="text-sm text-red-600 italic">
+                      ✗ You denied this request
                     </p>
-                  )}
+                  ) : request.status === 'revoked' ? (
+                    <p className="text-sm text-orange-600 italic">
+                      ⚠ You revoked access for this request
+                    </p>
+                  ) : null}
                 </div>
               </div>
             ))}
